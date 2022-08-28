@@ -8,6 +8,9 @@
 struct Bus;
 
 struct InstructionBitField {
+	u8 rs();
+	u8 rt();
+	u16 immediate_16();
 	u32 opcode;
 };
 
@@ -25,7 +28,12 @@ struct Cpu {
 	u8 clock();
 	u32 fetch_u32();
 
+	void set_register(u8 register_index, u32 value);
+	u32 get_register(u8 register_index);
+
+	void na_instruction(InstructionBitField& ibf);
 	void special(InstructionBitField& ibf); //secondary opcode
+
 	void bcond(InstructionBitField& ibf);
 	void j(InstructionBitField& ibf);
 	void jal(InstructionBitField& ibf);
@@ -33,6 +41,15 @@ struct Cpu {
 	void bne(InstructionBitField& ibf);
 	void blez(InstructionBitField& ibf);
 	void bgtz(InstructionBitField& ibf);
+
+	void addi(InstructionBitField& ibf);
+	void addiu(InstructionBitField& ibf);
+	void slti(InstructionBitField& ibf);
+	void sltiu(InstructionBitField& ibf);
+	void andi(InstructionBitField& ibf);
+	void ori(InstructionBitField& ibf);
+	void xori(InstructionBitField& ibf);
+	void lui(InstructionBitField& ibf);
 	
 
 private:
