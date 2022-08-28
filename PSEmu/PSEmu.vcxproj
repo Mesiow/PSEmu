@@ -146,7 +146,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Core\Bus.cpp" />
+    <ClCompile Include="Core\Common.cpp" />
     <ClCompile Include="Core\Cpu.cpp" />
+    <ClCompile Include="Core\Ibf.cpp" />
     <ClCompile Include="Core\Opcodes.cpp" />
     <ClCompile Include="imgui\imgui-SFML.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
