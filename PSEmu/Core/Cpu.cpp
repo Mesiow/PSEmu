@@ -22,15 +22,32 @@ void Cpu::reset()
 u8 Cpu::clock()
 {
 	u32 opcode = fetch_u32();
-	u8 primary_opcode = (opcode >> 26);
+	next_instruction = read_u32();
+
+	decode_and_execute(opcode);
+
+	return cycles;
+}
+
+void Cpu::decode_and_execute(u32 opcode)
+{
+	u8 primary_opcode = (opcode >> 26) & 0x3F;
 
 	InstructionBitField ibf;
 	ibf.opcode = opcode;
 
 	cycles = primary_lut[primary_opcode].cycles;
 	primary_lut[primary_opcode].execute(ibf);
+}
 
-	return cycles;
+u32 Cpu::read_u32()
+{
+	u32 word = (bus->read_u8(pc + 1)) |
+		(bus->read_u8(pc + 2) << 8) |
+		(bus->read_u8(pc + 3) << 16) |
+		(bus->read_u8(pc + 4) << 24);
+
+	return word;
 }
 
 u32 Cpu::fetch_u32()
@@ -43,7 +60,7 @@ u32 Cpu::fetch_u32()
 	return word;
 }
 
-void Cpu::set_register(u8 register_index, u32 value)
+void Cpu::write_register(u8 register_index, u32 value)
 {
 	if (register_index > 0x1F) {
 		printf("!!Register Write Error: Register index too large!!\n");
@@ -52,13 +69,22 @@ void Cpu::set_register(u8 register_index, u32 value)
 	gprs[register_index] = value;
 }
 
-u32 Cpu::get_register(u8 register_index)
+u32 Cpu::read_register(u8 register_index)
 {
 	if (register_index > 0x1F) {
 		printf("!!Register Write Error: Register index too large!!\n");
 		return;
 	}
 	return gprs[register_index];
+}
+
+void Cpu::branch_delay_slot()
+{
+	decode_and_execute(next_instruction);
+}
+
+void Cpu::load_delay_slot()
+{
 }
 
 void Cpu::na_instruction(InstructionBitField& ibf)
@@ -81,10 +107,24 @@ void Cpu::bcond(InstructionBitField& ibf)
 
 void Cpu::j(InstructionBitField& ibf)
 {
+	//shift target left 2 to combine with upper 4 bits of PC
+	u32 target = ibf.immediate_26();
+	pc = (pc & 0xF0000000) | (target << 2);
+
+	branch_delay_slot();
 }
 
 void Cpu::jal(InstructionBitField& ibf)
 {
+	u32 target = ibf.immediate_26();
+
+	//store address (return address) of instruction after the delay slot
+	//into the register ra
+	write_register(RA, pc + 4); 
+	
+	pc = (pc & 0xF0000000) | (target << 2);
+
+	branch_delay_slot();
 }
 
 void Cpu::beq(InstructionBitField& ibf)
@@ -111,10 +151,10 @@ void Cpu::addi(InstructionBitField& ibf)
 	u8 rt = ibf.rt();
 	u8 rs = ibf.rs();
 
-	u32 register_rs = get_register(rs);
+	u32 register_rs = read_register(rs);
 	u32 result = register_rs + imm_se;
 
-	set_register(rt, result);
+	write_register(rt, result);
 	//trap on two's complement overflow
 }
 
@@ -126,10 +166,10 @@ void Cpu::addiu(InstructionBitField& ibf)
 	u8 rt = ibf.rt();
 	u8 rs = ibf.rs();
 
-	u32 register_rs = get_register(rs);
+	u32 register_rs = read_register(rs);
 	u32 result = register_rs + imm_se;
 
-	set_register(rt, result);
+	write_register(rt, result);
 }
 
 void Cpu::slti(InstructionBitField& ibf)
@@ -140,11 +180,11 @@ void Cpu::slti(InstructionBitField& ibf)
 	u8 rt = ibf.rt();
 	u8 rs = ibf.rs();
 
-	s32 register_rs = (s32)get_register(rs);
+	s32 register_rs = (s32)read_register(rs);
 
 	u8 result = (register_rs < imm_se);
 
-	set_register(rt, result);
+	write_register(rt, result);
 }
 
 void Cpu::sltiu(InstructionBitField& ibf)
@@ -155,11 +195,11 @@ void Cpu::sltiu(InstructionBitField& ibf)
 	u8 rt = ibf.rt();
 	u8 rs = ibf.rs();
 
-	u32 register_rs = get_register(rs);
+	u32 register_rs = read_register(rs);
 
 	u8 result = (register_rs < imm_se);
 
-	set_register(rt, result);
+	write_register(rt, result);
 }
 
 void Cpu::andi(InstructionBitField& ibf)
@@ -168,10 +208,10 @@ void Cpu::andi(InstructionBitField& ibf)
 	u8 rt = ibf.rt();
 	u8 rs = ibf.rs();
 
-	u32 register_rs = get_register(rs);
+	u32 register_rs = read_register(rs);
 	u32 result = register_rs & imm;
 
-	set_register(rt, result);
+	write_register(rt, result);
 }
 
 void Cpu::ori(InstructionBitField& ibf)
@@ -180,10 +220,10 @@ void Cpu::ori(InstructionBitField& ibf)
 	u8 rt = ibf.rt();
 	u8 rs = ibf.rs();
 
-	u32 register_rs = get_register(rs);
+	u32 register_rs = read_register(rs);
 	u32 result = register_rs | imm;
 
-	set_register(rt, result);
+	write_register(rt, result);
 }
 
 void Cpu::xori(InstructionBitField& ibf)
@@ -192,10 +232,10 @@ void Cpu::xori(InstructionBitField& ibf)
 	u8 rt = ibf.rt();
 	u8 rs = ibf.rs();
 
-	u32 register_rs = get_register(rs);
+	u32 register_rs = read_register(rs);
 	u32 result = register_rs ^ imm;
 
-	set_register(rt, result);
+	write_register(rt, result);
 }
 
 void Cpu::lui(InstructionBitField& ibf)
@@ -205,5 +245,28 @@ void Cpu::lui(InstructionBitField& ibf)
 
 	u8 rt = ibf.rt();
 
-	set_register(rt, result);
+	write_register(rt, result);
+}
+
+void Cpu::jr(InstructionBitField& ibf)
+{
+	u8 rs = ibf.rs();
+	u32 target = read_register(rs);
+
+	pc = target;
+
+	branch_delay_slot();
+}
+
+void Cpu::jalr(InstructionBitField& ibf)
+{
+	u8 rs = ibf.rs();
+	u8 rd = ibf.rd();
+
+	write_register(rd, pc + 4);
+
+	u32 target = read_register(rs);
+	pc = target;
+
+	branch_delay_slot();
 }

@@ -7,10 +7,20 @@
 
 struct Bus;
 
+enum RegisterAlias : u8{
+	RA = 31
+};
+
+struct DelaySlot {
+	u32 instruction;
+};
+
 struct InstructionBitField {
 	u8 rs();
 	u8 rt();
+	u8 rd();
 	u16 immediate_16();
+	u32 immediate_26();
 	u32 opcode;
 };
 
@@ -25,11 +35,18 @@ struct Cpu {
 
 	void reset();
 	void map_opcodes();
+
 	u8 clock();
+	void decode_and_execute(u32 opcode);
+
+	u32 read_u32();
 	u32 fetch_u32();
 
-	void set_register(u8 register_index, u32 value);
-	u32 get_register(u8 register_index);
+	void write_register(u8 register_index, u32 value);
+	u32 read_register(u8 register_index);
+
+	void branch_delay_slot();
+	void load_delay_slot();
 
 	void na_instruction(InstructionBitField& ibf);
 	void special(InstructionBitField& ibf); //secondary opcode
@@ -50,6 +67,10 @@ struct Cpu {
 	void ori(InstructionBitField& ibf);
 	void xori(InstructionBitField& ibf);
 	void lui(InstructionBitField& ibf);
+
+	//secondary
+	void jr(InstructionBitField& ibf);
+	void jalr(InstructionBitField& ibf);
 	
 
 private:
@@ -60,6 +81,7 @@ private:
 	std::array<Instruction, 0x3F> primary_lut;
 	std::array<Instruction, 0x3F> secondary_lut;
 	u8 cycles = 0;
+	u32 next_instruction = 0;
 
 	Bus* bus;
 };
