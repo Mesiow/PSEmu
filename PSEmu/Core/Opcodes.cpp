@@ -19,4 +19,9 @@ void Cpu::map_opcodes()
 	primary_lut[0x0D] = Instruction{ b(&Cpu::ori), 1 };
 	primary_lut[0x0E] = Instruction{ b(&Cpu::xori), 1 };
 	primary_lut[0x0F] = Instruction{ b(&Cpu::lui), 1 };
+
+	
+	//secondary field
+	secondary_lut[0x08] = Instruction{ b(&Cpu::jr), 1 };
+	secondary_lut[0x09] = Instruction{ b(&Cpu::jalr), 1 };
 }
