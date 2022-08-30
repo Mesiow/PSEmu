@@ -54,6 +54,8 @@ struct Cpu {
 	void bcond(InstructionBitField& ibf);
 	void j(InstructionBitField& ibf);
 	void jal(InstructionBitField& ibf);
+
+	void branch(InstructionBitField& ibf);
 	void beq(InstructionBitField& ibf);
 	void bne(InstructionBitField& ibf);
 	void blez(InstructionBitField& ibf);

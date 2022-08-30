@@ -73,7 +73,7 @@ u32 Cpu::read_register(u8 register_index)
 {
 	if (register_index > 0x1F) {
 		printf("!!Register Write Error: Register index too large!!\n");
-		return;
+		return 0xDEAD;
 	}
 	return gprs[register_index];
 }
@@ -103,11 +103,34 @@ void Cpu::special(InstructionBitField& ibf)
 
 void Cpu::bcond(InstructionBitField& ibf)
 {
+	u8 rs = ibf.rs();
+	u32 register_rs = read_register(rs);
+
+	switch ((ibf.opcode >> 16) & 0x1F) {
+		case 0b00000: //bltz
+			if (register_rs < 0) branch(ibf);
+		break;
+		case 0b00001: //bgez 
+			if (register_rs >= 0) branch(ibf);
+		break;
+		case 0b10000: { //bltzal
+			write_register(RA, pc + 4); //place address following delay slot in ra
+			if (register_rs < 0)
+				branch(ibf);
+		}
+		break;
+		case 0b10001: {//bgezal
+			write_register(RA, pc + 4);
+			if (register_rs >= 0)
+				branch(ibf);
+		}
+		break;
+	}
 }
 
 void Cpu::j(InstructionBitField& ibf)
 {
-	//shift target left 2 to combine with upper 4 bits of PC
+	//align target address (shift left 2) to combine with upper 4 bits of PC
 	u32 target = ibf.immediate_26();
 	pc = (pc & 0xF0000000) | (target << 2);
 
@@ -127,20 +150,58 @@ void Cpu::jal(InstructionBitField& ibf)
 	branch_delay_slot();
 }
 
+void Cpu::branch(InstructionBitField& ibf)
+{
+	u32 imm = (s16)ibf.immediate_16();
+	imm = sext_32(imm, 16);
+	imm <<= 2;
+
+	u32 delay_slot_address = pc;
+	u32 target_address = delay_slot_address + imm;
+
+	pc = target_address;
+}
+
 void Cpu::beq(InstructionBitField& ibf)
 {
+	u8 rs = ibf.rs();
+	u8 rt = ibf.rt();
+
+	u32 register_rs = read_register(rs);
+	u32 register_rt = read_register(rt);
+
+	if (register_rs == register_rt)
+		branch(ibf);
 }
 
 void Cpu::bne(InstructionBitField& ibf)
 {
+	u8 rs = ibf.rs();
+	u8 rt = ibf.rt();
+
+	u32 register_rs = read_register(rs);
+	u32 register_rt = read_register(rt);
+
+	if (register_rs != register_rt)
+		branch(ibf);
 }
 
 void Cpu::blez(InstructionBitField& ibf)
 {
+	u8 rs = ibf.rs();
+	u32 register_rs = read_register(rs);
+
+	if (register_rs <= 0)
+		branch(ibf);
 }
 
 void Cpu::bgtz(InstructionBitField& ibf)
 {
+	u8 rs = ibf.rs();
+	u32 register_rs = read_register(rs);
+
+	if (register_rs > 0)
+		branch(ibf);
 }
 
 void Cpu::addi(InstructionBitField& ibf)
