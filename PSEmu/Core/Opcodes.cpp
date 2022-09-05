@@ -19,14 +19,9 @@ void Cpu::map_opcodes()
 	primary_lut[0x0D] = Instruction{ b(&Cpu::ori), 1 };
 	primary_lut[0x0E] = Instruction{ b(&Cpu::xori), 1 };
 	primary_lut[0x0F] = Instruction{ b(&Cpu::lui), 1 };
-
-	primary_lut[0x20] = Instruction{ b(&Cpu::lb), 1 };
-	primary_lut[0x21] = Instruction{ b(&Cpu::lh), 1 };
-	primary_lut[0x22] = Instruction{ b(&Cpu::lwl), 1 };
-	primary_lut[0x23] = Instruction{ b(&Cpu::lw), 1 };
-	primary_lut[0x24] = Instruction{ b(&Cpu::lbu), 1 };
-	primary_lut[0x25] = Instruction{ b(&Cpu::lhu), 1 };
-	primary_lut[0x26] = Instruction{ b(&Cpu::lwr), 1 };
+	for (s32 i = 0x20; i < 0x27; i++) {
+		primary_lut[i] = Instruction{ b(&Cpu::load), 1 };
+	}
 	primary_lut[0x27] = Instruction{ b(&Cpu::undefined_instruction), 1 };
 
 	
