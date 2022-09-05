@@ -11,8 +11,16 @@ enum RegisterAlias : u8{
 	RA = 31
 };
 
-struct DelaySlot {
-	u32 instruction;
+struct LoadDelaySlot {
+	void save_output();
+	u32 output_gprs[0x20];
+	u8 register_index; //target register index to save
+	u32 register_value; //loaded value to save
+};
+
+struct Load {
+	u8 register_index;
+	u32 register_value;
 };
 
 struct InstructionBitField {
@@ -45,10 +53,11 @@ struct Cpu {
 	void write_register(u8 register_index, u32 value);
 	u32 read_register(u8 register_index);
 
-	void branch_delay_slot();
-	void load_delay_slot();
+	Load handle_load();
+	void handle_branch_delay_slot();
+	void handle_load_delay_slot(u8 register_index, u32 value);
 
-	void na_instruction(InstructionBitField& ibf);
+	void undefined_instruction(InstructionBitField& ibf);
 	void special(InstructionBitField& ibf); //secondary opcode
 
 	void bcond(InstructionBitField& ibf);
@@ -70,6 +79,15 @@ struct Cpu {
 	void xori(InstructionBitField& ibf);
 	void lui(InstructionBitField& ibf);
 
+	void load(InstructionBitField& ibf);
+	void lb(InstructionBitField& ibf);
+	void lbu(InstructionBitField& ibf);
+	void lh(InstructionBitField& ibf);
+	void lhu(InstructionBitField& ibf);
+	void lw(InstructionBitField& ibf);
+	void lwl(InstructionBitField& ibf);
+	void lwr(InstructionBitField& ibf);
+
 	//secondary
 	void jr(InstructionBitField& ibf);
 	void jalr(InstructionBitField& ibf);
@@ -79,6 +97,8 @@ private:
 	u32 gprs[0x20];
 	u32 pc;
 	u32 hi, lo; //mult/divide results
+	LoadDelaySlot lds;
+	bool load_delay = false;
 
 	std::array<Instruction, 0x3F> primary_lut;
 	std::array<Instruction, 0x3F> secondary_lut;

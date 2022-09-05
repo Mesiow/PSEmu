@@ -15,6 +15,8 @@ Cpu::~Cpu()
 void Cpu::reset()
 {
 	memset(gprs, 0x0, 0x20);
+	memset(lds.output_gprs, 0x0, 0x20);
+
 	pc = 0xBFC00000; //point to bios rom
 	hi = lo = 0x0;
 }
@@ -36,8 +38,16 @@ void Cpu::decode_and_execute(u32 opcode)
 	InstructionBitField ibf;
 	ibf.opcode = opcode;
 
+	if(load_delay)
+		lds.save_output(); 
+
 	cycles = primary_lut[primary_opcode].cycles;
 	primary_lut[primary_opcode].execute(ibf);
+
+	if (load_delay) {
+		write_register(lds.register_index, lds.register_value);
+		load_delay = false;
+	}
 }
 
 u32 Cpu::read_u32()
@@ -67,6 +77,7 @@ void Cpu::write_register(u8 register_index, u32 value)
 		return;
 	}
 	gprs[register_index] = value;
+	gprs[0x0] = 0x0;
 }
 
 u32 Cpu::read_register(u8 register_index)
@@ -78,18 +89,28 @@ u32 Cpu::read_register(u8 register_index)
 	return gprs[register_index];
 }
 
-void Cpu::branch_delay_slot()
+void Cpu::handle_branch_delay_slot()
 {
 	decode_and_execute(next_instruction);
 }
 
-void Cpu::load_delay_slot()
+void Cpu::handle_load_delay_slot(u8 register_index, u32 value)
 {
+	//save target values of the load
+	lds.register_index = register_index;
+	lds.register_value = value;
+
+	load_delay = true;
 }
 
-void Cpu::na_instruction(InstructionBitField& ibf)
+void LoadDelaySlot::save_output()
 {
-	printf("!!N/A instruction!!");
+	output_gprs[register_index] = register_value;
+}
+
+void Cpu::undefined_instruction(InstructionBitField& ibf)
+{
+	printf("!!Undefined N/A instruction!!");
 	assert(false);
 }
 
@@ -134,7 +155,7 @@ void Cpu::j(InstructionBitField& ibf)
 	u32 target = ibf.immediate_26();
 	pc = (pc & 0xF0000000) | (target << 2);
 
-	branch_delay_slot();
+	handle_branch_delay_slot();
 }
 
 void Cpu::jal(InstructionBitField& ibf)
@@ -147,7 +168,7 @@ void Cpu::jal(InstructionBitField& ibf)
 	
 	pc = (pc & 0xF0000000) | (target << 2);
 
-	branch_delay_slot();
+	handle_branch_delay_slot();
 }
 
 void Cpu::branch(InstructionBitField& ibf)
@@ -309,6 +330,101 @@ void Cpu::lui(InstructionBitField& ibf)
 	write_register(rt, result);
 }
 
+void Cpu::load(InstructionBitField& ibf)
+{
+	switch ((ibf.opcode >> 26) & 0x7) {
+		case 0b000: lb(ibf); break;
+		case 0b001: lh(ibf); break;
+		case 0b010: lwl(ibf); break;
+		case 0b011: lw(ibf); break;
+		case 0b100: lbu(ibf); break;
+		case 0b101: lhu(ibf); break;
+		case 0b110: lwr(ibf); break;
+	}
+}
+
+void Cpu::lb(InstructionBitField& ibf)
+{
+	u32 imm_se = (s16)ibf.immediate_16();
+	imm_se = sext_32(imm_se, 16);
+
+	u8 rt = ibf.rt();
+	u8 rs = ibf.rs();
+
+	u32 register_rs = read_register(rs);
+	u32 target_address = register_rs + imm_se;
+
+	//read byte and sign extend it
+	u32 byte = (s8)bus->read_u8(target_address);
+	byte = sext_32(byte, 8);
+
+	handle_load_delay_slot(rt, byte);
+}
+
+void Cpu::lbu(InstructionBitField& ibf)
+{
+	u32 imm_se = (s16)ibf.immediate_16();
+	imm_se = sext_32(imm_se, 16);
+
+	u8 rt = ibf.rt();
+	u8 rs = ibf.rs();
+
+	u32 register_rs = read_register(rs);
+	u32 target_address = register_rs + imm_se;
+
+	//read byte and zero extend
+	u32 byte = bus->read_u8(target_address);
+	
+	handle_load_delay_slot(rt, byte);
+}
+
+void Cpu::lh(InstructionBitField& ibf)
+{
+	u32 imm_se = (s16)ibf.immediate_16();
+	imm_se = sext_32(imm_se, 16);
+
+	u8 rt = ibf.rt();
+	u8 rs = ibf.rs();
+
+	u32 register_rs = read_register(rs);
+	u32 target_address = register_rs + imm_se;
+
+	u32 halfword = (s16)bus->read_u16(target_address);
+	halfword = sext_32(halfword, 16);
+
+	handle_load_delay_slot(rt, halfword);
+}
+
+void Cpu::lhu(InstructionBitField& ibf)
+{
+	u32 imm_se = (s16)ibf.immediate_16();
+	imm_se = sext_32(imm_se, 16);
+
+	u8 rt = ibf.rt();
+	u8 rs = ibf.rs();
+
+	u32 register_rs = read_register(rs);
+	u32 target_address = register_rs + imm_se;
+
+	u32 halfword = bus->read_u16(target_address);
+
+	handle_load_delay_slot(rt, halfword);
+}
+
+void Cpu::lw(InstructionBitField& ibf)
+{
+
+}
+
+void Cpu::lwl(InstructionBitField& ibf)
+{
+
+}
+
+void Cpu::lwr(InstructionBitField& ibf)
+{
+}
+
 void Cpu::jr(InstructionBitField& ibf)
 {
 	u8 rs = ibf.rs();
@@ -316,7 +432,7 @@ void Cpu::jr(InstructionBitField& ibf)
 
 	pc = target;
 
-	branch_delay_slot();
+	handle_branch_delay_slot();
 }
 
 void Cpu::jalr(InstructionBitField& ibf)
@@ -329,5 +445,5 @@ void Cpu::jalr(InstructionBitField& ibf)
 	u32 target = read_register(rs);
 	pc = target;
 
-	branch_delay_slot();
+	handle_branch_delay_slot();
 }
