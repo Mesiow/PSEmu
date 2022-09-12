@@ -79,6 +79,7 @@ struct Cpu {
 	void xori(InstructionBitField& ibf);
 	void lui(InstructionBitField& ibf);
 
+	u32 calculate_load_store_target_address(InstructionBitField& ibf);
 	void load(InstructionBitField& ibf);
 	void lb(InstructionBitField& ibf);
 	void lbu(InstructionBitField& ibf);

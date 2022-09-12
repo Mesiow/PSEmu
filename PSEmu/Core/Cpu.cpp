@@ -330,6 +330,20 @@ void Cpu::lui(InstructionBitField& ibf)
 	write_register(rt, result);
 }
 
+u32 Cpu::calculate_load_store_target_address(InstructionBitField& ibf)
+{
+	u32 imm_se = (s16)ibf.immediate_16();
+	imm_se = sext_32(imm_se, 16);
+
+	u8 rt = ibf.rt();
+	u8 rs = ibf.rs();
+
+	u32 register_rs = read_register(rs);
+	u32 target_address = register_rs + imm_se;
+
+	return target_address;
+}
+
 void Cpu::load(InstructionBitField& ibf)
 {
 	switch ((ibf.opcode >> 26) & 0x7) {
@@ -345,84 +359,87 @@ void Cpu::load(InstructionBitField& ibf)
 
 void Cpu::lb(InstructionBitField& ibf)
 {
-	u32 imm_se = (s16)ibf.immediate_16();
-	imm_se = sext_32(imm_se, 16);
-
-	u8 rt = ibf.rt();
-	u8 rs = ibf.rs();
-
-	u32 register_rs = read_register(rs);
-	u32 target_address = register_rs + imm_se;
+	u32 target_address = calculate_load_store_target_address(ibf);
 
 	//read byte and sign extend it
 	u32 byte = (s8)bus->read_u8(target_address);
 	byte = sext_32(byte, 8);
 
-	handle_load_delay_slot(rt, byte);
+	handle_load_delay_slot(ibf.rt(), byte);
 }
 
 void Cpu::lbu(InstructionBitField& ibf)
 {
-	u32 imm_se = (s16)ibf.immediate_16();
-	imm_se = sext_32(imm_se, 16);
-
-	u8 rt = ibf.rt();
-	u8 rs = ibf.rs();
-
-	u32 register_rs = read_register(rs);
-	u32 target_address = register_rs + imm_se;
+	u32 target_address = calculate_load_store_target_address(ibf);
 
 	//read byte and zero extend
 	u32 byte = bus->read_u8(target_address);
 	
-	handle_load_delay_slot(rt, byte);
+	handle_load_delay_slot(ibf.rt(), byte);
 }
 
 void Cpu::lh(InstructionBitField& ibf)
 {
-	u32 imm_se = (s16)ibf.immediate_16();
-	imm_se = sext_32(imm_se, 16);
-
-	u8 rt = ibf.rt();
-	u8 rs = ibf.rs();
-
-	u32 register_rs = read_register(rs);
-	u32 target_address = register_rs + imm_se;
+	u32 target_address = calculate_load_store_target_address(ibf);
 
 	u32 halfword = (s16)bus->read_u16(target_address);
 	halfword = sext_32(halfword, 16);
 
-	handle_load_delay_slot(rt, halfword);
+	handle_load_delay_slot(ibf.rt(), halfword);
 }
 
 void Cpu::lhu(InstructionBitField& ibf)
 {
-	u32 imm_se = (s16)ibf.immediate_16();
-	imm_se = sext_32(imm_se, 16);
-
-	u8 rt = ibf.rt();
-	u8 rs = ibf.rs();
-
-	u32 register_rs = read_register(rs);
-	u32 target_address = register_rs + imm_se;
-
+	u32 target_address = calculate_load_store_target_address(ibf);
 	u32 halfword = bus->read_u16(target_address);
 
-	handle_load_delay_slot(rt, halfword);
+	handle_load_delay_slot(ibf.rt(), halfword);
 }
 
 void Cpu::lw(InstructionBitField& ibf)
 {
+	u32 target_address = calculate_load_store_target_address(ibf);
+	u32 word = bus->read_u32(target_address);
 
+	handle_load_delay_slot(ibf.rt(), word);
 }
 
 void Cpu::lwl(InstructionBitField& ibf)
 {
+	u32 target_address = calculate_load_store_target_address(ibf);
+	//force align address
+	u32 aligned_address = target_address & 0xFFFFFFFC;
 
+	u32 word = bus->read_u32(aligned_address);
+	u32 register_rt = read_register(ibf.rt());
+
+	//determine value based on alignment
+	switch (target_address & 0x3) {
+		case 0b00: (register_rt & 0x00FFFFFF) | (word << 24); break;
+		case 0b01: (register_rt & 0x0000FFFF) | (word << 16); break;
+		case 0b10: (register_rt & 0x000000FF) | (word << 8); break;
+		case 0b11: (register_rt = word); break;
+	}
+
+	handle_load_delay_slot(ibf.rt(), register_rt);
 }
 
 void Cpu::lwr(InstructionBitField& ibf)
 {
+	u32 target_address = calculate_load_store_target_address(ibf);
+	u32 aligned_address = target_address & 0xFFFFFFFC;
+
+	u32 word = bus->read_u32(target_address);
+	u32 register_rt = read_register(ibf.rt());
+
+	switch (target_address & 0x3) {
+		case 0b00: (register_rt = word); break;
+		case 0b01: (register_rt & 0xFF000000) | (word >> 8); break;
+		case 0b10: (register_rt & 0xFFFF0000) | (word >> 16); break;
+		case 0b11: (register_rt & 0xFFFFFF00) | (word >> 24); break;
+	}
+
+	handle_load_delay_slot(ibf.rt(), register_rt);
 }
 
 void Cpu::jr(InstructionBitField& ibf)
