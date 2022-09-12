@@ -14,7 +14,10 @@ struct Bus {
 	void reset();
 	void load_bios(const std::string& path);
 	void write_u8(u32 address, u8 byte);
+
 	u8 read_u8(u32 address);
+	u16 read_u16(u32 address);
+	u32 read_u32(u32 address);
 
 private:
 	u8* main_ram;

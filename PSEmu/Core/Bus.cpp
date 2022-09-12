@@ -107,3 +107,19 @@ u8 Bus::read_u8(u32 address)
 		return 0x00;
 	}
 }
+
+u16 Bus::read_u16(u32 address)
+{
+	if ((address % 2) != 0) {
+		printf("!!Unaligned read u16 at address: 0x%08X\n", address);
+		return 0x0;
+	}
+}
+
+u32 Bus::read_u32(u32 address)
+{
+	if ((address % 2) != 0) {
+		printf("!!Unaligned read u32 at address: 0x%08X\n", address);
+		return 0x0;
+	}
+}
