@@ -14,6 +14,8 @@ struct Bus {
 	void reset();
 	void load_bios(const std::string& path);
 	void write_u8(u32 address, u8 byte);
+	void write_u16(u32 address, u16 halfword);
+	void write_u32(u32 address, u32 word);
 
 	u8 read_u8(u32 address);
 	u16 read_u16(u32 address);

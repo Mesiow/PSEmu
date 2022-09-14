@@ -81,6 +81,14 @@ void Bus::write_u8(u32 address, u8 byte)
 	}
 }
 
+void Bus::write_u16(u32 address, u16 halfword)
+{
+}
+
+void Bus::write_u32(u32 address, u32 word)
+{
+}
+
 u8 Bus::read_u8(u32 address)
 {
 	if (address >= 0xA0000000 && address <= (0xA0000000 + MAIN_RAM_SIZE)) {
