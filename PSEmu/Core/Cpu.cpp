@@ -335,7 +335,6 @@ u32 Cpu::calculate_load_store_target_address(InstructionBitField& ibf)
 	u32 imm_se = (s16)ibf.immediate_16();
 	imm_se = sext_32(imm_se, 16);
 
-	u8 rt = ibf.rt();
 	u8 rs = ibf.rs();
 
 	u32 register_rs = read_register(rs);
@@ -414,14 +413,15 @@ void Cpu::lwl(InstructionBitField& ibf)
 	u32 register_rt = read_register(ibf.rt());
 
 	//determine value based on alignment
+	u32 loaded_value = word;
 	switch (target_address & 0x3) {
-		case 0b00: (register_rt & 0x00FFFFFF) | (word << 24); break;
-		case 0b01: (register_rt & 0x0000FFFF) | (word << 16); break;
-		case 0b10: (register_rt & 0x000000FF) | (word << 8); break;
-		case 0b11: (register_rt = word); break;
+		case 0b00: loaded_value = ((register_rt & 0x00FFFFFF) | (word << 24)); break;
+		case 0b01: loaded_value = ((register_rt & 0x0000FFFF) | (word << 16)); break;
+		case 0b10: loaded_value = ((register_rt & 0x000000FF) | (word << 8)); break;
+		case 0b11: loaded_value = (register_rt = word); break;
 	}
 
-	handle_load_delay_slot(ibf.rt(), register_rt);
+	handle_load_delay_slot(ibf.rt(), loaded_value);
 }
 
 void Cpu::lwr(InstructionBitField& ibf)
@@ -432,14 +432,105 @@ void Cpu::lwr(InstructionBitField& ibf)
 	u32 word = bus->read_u32(target_address);
 	u32 register_rt = read_register(ibf.rt());
 
+	u32 loaded_value = word;
 	switch (target_address & 0x3) {
-		case 0b00: (register_rt = word); break;
-		case 0b01: (register_rt & 0xFF000000) | (word >> 8); break;
-		case 0b10: (register_rt & 0xFFFF0000) | (word >> 16); break;
-		case 0b11: (register_rt & 0xFFFFFF00) | (word >> 24); break;
+		case 0b00: loaded_value = (register_rt = word); break;
+		case 0b01: loaded_value = ((register_rt & 0xFF000000) | (word >> 8)); break;
+		case 0b10: loaded_value = ((register_rt & 0xFFFF0000) | (word >> 16)); break;
+		case 0b11: loaded_value = ((register_rt & 0xFFFFFF00) | (word >> 24)); break;
 	}
 
-	handle_load_delay_slot(ibf.rt(), register_rt);
+	handle_load_delay_slot(ibf.rt(), loaded_value);
+}
+
+void Cpu::store(InstructionBitField& ibf)
+{
+	switch ((ibf.opcode >> 26) & 0x7) {
+		case 0b000: sb(ibf); break;
+		case 0b001: sh(ibf); break;
+		case 0b010: swl(ibf); break;
+		case 0b011: sw(ibf); break;
+		case 0b110: swr(ibf); break;
+	}
+}
+
+void Cpu::sb(InstructionBitField& ibf)
+{
+	u32 target_address = calculate_load_store_target_address(ibf);
+	u32 register_rt = read_register(ibf.rt());
+
+	u8 byte = register_rt & 0xFF;
+	bus->write_u8(target_address, byte);
+}
+
+void Cpu::sh(InstructionBitField& ibf)
+{
+	u32 target_address = calculate_load_store_target_address(ibf);
+	u32 register_rt = read_register(ibf.rt());
+
+	u16 halfword = register_rt & 0xFFFF;
+	bus->write_u16(target_address, halfword);
+}
+
+void Cpu::swl(InstructionBitField& ibf)
+{
+	u32 target_address = calculate_load_store_target_address(ibf);
+	u32 register_rt = read_register(ibf.rt());
+
+	u32 target_address = calculate_load_store_target_address(ibf);
+	//force align address
+	u32 aligned_address = target_address & 0xFFFFFFFC;
+
+	u32 register_rt = read_register(ibf.rt());
+	//read current value at aligned address and update
+	//the value with register rt
+	u32 curr_mem_value = bus->read_u32(aligned_address);
+
+	//determine value based on alignment
+	u32 stored_value = 0;
+	switch (target_address & 0x3) {
+		case 0b00: stored_value = ((curr_mem_value & 0xFFFFFF00) | (register_rt >> 24)); break;
+		case 0b01: stored_value = ((curr_mem_value & 0xFFFF0000) | (register_rt >> 16)); break;
+		case 0b10: stored_value = ((curr_mem_value & 0xFF000000) | (register_rt >> 8)); break;
+		case 0b11: stored_value = ((curr_mem_value & 0x00000000) | (register_rt >> 0)); break;
+	}
+
+	bus->write_u32(aligned_address, stored_value);
+}
+
+void Cpu::sw(InstructionBitField& ibf)
+{
+	u32 target_address = calculate_load_store_target_address(ibf);
+	u32 register_rt = read_register(ibf.rt());
+
+	u32 word = register_rt & 0xFFFFFFFF;
+	bus->write_u32(target_address, word);
+}
+
+void Cpu::swr(InstructionBitField& ibf)
+{
+	u32 target_address = calculate_load_store_target_address(ibf);
+	u32 register_rt = read_register(ibf.rt());
+
+	u32 target_address = calculate_load_store_target_address(ibf);
+	//force align address
+	u32 aligned_address = target_address & 0xFFFFFFFC;
+
+	u32 register_rt = read_register(ibf.rt());
+	//read current value at aligned address and update
+	//the value with register rt
+	u32 curr_mem_value = bus->read_u32(aligned_address);
+
+	//determine value based on alignment
+	u32 stored_value = 0;
+	switch (target_address & 0x3) {
+		case 0b00: stored_value = ((curr_mem_value & 0x00000000) | (register_rt << 0)); break;
+		case 0b01: stored_value = ((curr_mem_value & 0x000000FF) | (register_rt << 8)); break;
+		case 0b10: stored_value = ((curr_mem_value & 0x0000FFFF) | (register_rt << 16)); break;
+		case 0b11: stored_value = ((curr_mem_value & 0x00FFFFFF) | (register_rt << 24)); break;
+	}
+
+	bus->write_u32(aligned_address, stored_value);
 }
 
 void Cpu::jr(InstructionBitField& ibf)

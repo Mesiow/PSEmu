@@ -89,6 +89,13 @@ struct Cpu {
 	void lwl(InstructionBitField& ibf);
 	void lwr(InstructionBitField& ibf);
 
+	void store(InstructionBitField& ibf);
+	void sb(InstructionBitField& ibf);
+	void sh(InstructionBitField& ibf);
+	void swl(InstructionBitField& ibf);
+	void sw(InstructionBitField& ibf);
+	void swr(InstructionBitField& ibf);
+
 	//secondary
 	void jr(InstructionBitField& ibf);
 	void jalr(InstructionBitField& ibf);
